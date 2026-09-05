@@ -202,6 +202,116 @@ header {
   color: #ff8a8a;
 }
 
+.controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.sound-picker {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--ink-dim);
+}
+.sound-picker-label {
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+.sound-picker select {
+  appearance: none;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font-family: 'Manrope';
+  font-weight: 600;
+  font-size: 13px;
+  padding: 8px 34px 8px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, var(--ink-dim) 50%), linear-gradient(135deg, var(--ink-dim) 50%, transparent 50%);
+  background-position: calc(100% - 18px) center, calc(100% - 13px) center;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+.sound-picker select:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.transport {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.transport-btn {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink-dim);
+  font-family: 'Manrope';
+  font-weight: 700;
+  font-size: 12.5px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.transport-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.transport-btn:not(:disabled):hover {
+  border-color: var(--ink-dim);
+  color: var(--ink);
+}
+.transport-btn.record .rec-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #ff5d5d;
+  display: inline-block;
+}
+.transport-btn.record[aria-pressed='true'] {
+  background: #3a1620;
+  border-color: #ff5d5d;
+  color: #ffd4d4;
+}
+.transport-btn.record[aria-pressed='true'] .rec-dot {
+  animation: rec-pulse 1s ease-in-out infinite;
+}
+.transport-btn[aria-pressed='true']:not(.record) {
+  background: color-mix(in srgb, var(--piano) 28%, var(--panel));
+  border-color: var(--piano);
+  color: #eaf3ff;
+}
+.transport-status {
+  font-family: 'JetBrains Mono';
+  font-size: 12px;
+  color: var(--ink-faint);
+  min-width: 8ch;
+}
+
+@keyframes rec-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
 .readout {
   display: flex;
   align-items: center;

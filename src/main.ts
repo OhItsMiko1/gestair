@@ -2,18 +2,26 @@ import './style.css';
 import {
   ensureAudio,
   pluck,
-  startPianoVoice,
+  startSustainVoice,
   startTheremin,
   noteName,
   midiToFreq,
   GRID_NOTES,
   PIANO_NOTES,
+  MELODIC_SYNTHS,
+  SYNTH_LABELS,
+  DRUM_PADS,
+  DRUM_LABELS,
+  playDrum,
+  createRecorder,
+  type MelodicSynth,
   type SustainVoice,
   type ThereminVoice,
 } from './audio';
 import { loadHandLandmarker, startCamera, detectHands, type Hand } from './handTracking';
 
 type ModeId = 'theremin' | 'grid' | 'piano';
+type GridSynth = MelodicSynth | 'drums';
 
 const HINTS: Record<ModeId, string> = {
   theremin: 'Hold up one hand — height bends pitch, side-to-side shapes the tone. Lower your hand to go silent.',
@@ -32,6 +40,12 @@ const gateStatus = document.getElementById('gate-status')!;
 const noteBox = document.getElementById('readout-note')!;
 const hintBox = document.getElementById('readout-hint')!;
 const tabs = Array.from(document.querySelectorAll<HTMLButtonElement>('.tab'));
+const synthSelect = document.getElementById('synth-select') as HTMLSelectElement;
+const recordBtn = document.getElementById('record-btn') as HTMLButtonElement;
+const playBtn = document.getElementById('play-btn') as HTMLButtonElement;
+const loopBtn = document.getElementById('loop-btn') as HTMLButtonElement;
+const downloadBtn = document.getElementById('download-btn') as HTMLButtonElement;
+const transportStatus = document.getElementById('transport-status')!;
 
 const PALETTE: Record<ModeId, string> = {
   theremin: '#ff9b4d',
@@ -48,6 +62,46 @@ function mirroredPoint(lm: { x: number; y: number }, w: number, h: number) {
   return { x: (1 - lm.x) * w, y: lm.y * h };
 }
 
+function roundRect(c: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  c.beginPath();
+  c.moveTo(x + r, y);
+  c.arcTo(x + w, y, x + w, y + h, r);
+  c.arcTo(x + w, y + h, x, y + h, r);
+  c.arcTo(x, y + h, x, y, r);
+  c.arcTo(x, y, x + w, y, r);
+  c.closePath();
+}
+
+// ---------------- per-mode sound selection ----------------
+
+const GRID_SYNTH_OPTIONS: GridSynth[] = [...MELODIC_SYNTHS, 'drums'];
+const SYNTH_OPTION_LABELS: Record<GridSynth, string> = { ...SYNTH_LABELS, drums: 'Drum Kit' };
+
+const modeSynth: Record<ModeId, GridSynth> = {
+  theremin: 'saw',
+  grid: 'drums',
+  piano: 'organ',
+};
+
+function synthOptionsFor(m: ModeId): GridSynth[] {
+  return m === 'grid' ? GRID_SYNTH_OPTIONS : MELODIC_SYNTHS;
+}
+
+function populateSynthSelect() {
+  const options = synthOptionsFor(mode);
+  synthSelect.innerHTML = '';
+  options.forEach((id) => {
+    const opt = document.createElement('option');
+    opt.value = id;
+    opt.textContent = SYNTH_OPTION_LABELS[id];
+    synthSelect.appendChild(opt);
+  });
+  synthSelect.value = modeSynth[mode];
+}
+synthSelect.addEventListener('change', () => {
+  modeSynth[mode] = synthSelect.value as GridSynth;
+});
+
 // ---------------- mode controllers ----------------
 
 interface ModeController {
@@ -57,8 +111,11 @@ interface ModeController {
 
 class ThereminMode implements ModeController {
   private voice: ThereminVoice | null = null;
+  private voiceSynth: MelodicSynth | null = null;
 
   frame(hands: Hand[], w: number, h: number): void {
+    const synth = modeSynth.theremin as MelodicSynth;
+
     if (hands.length === 0) {
       this.reset();
       setReadout('&mdash;', HINTS.theremin);
@@ -93,8 +150,16 @@ class ThereminMode implements ModeController {
     const xFrac = Math.min(Math.max(palm.x / w, 0), 1);
     const cutoff = 250 + xFrac * 4200;
 
-    if (!this.voice) this.voice = startTheremin(freq, cutoff);
-    else this.voice.update(freq, cutoff);
+    if (this.voice && this.voiceSynth !== synth) {
+      this.voice.stop();
+      this.voice = null;
+    }
+    if (!this.voice) {
+      this.voice = startTheremin(freq, cutoff, synth);
+      this.voiceSynth = synth;
+    } else {
+      this.voice.update(freq, cutoff);
+    }
 
     ctx.beginPath();
     const grad = ctx.createRadialGradient(palm.x, palm.y, 2, palm.x, palm.y, 22);
@@ -112,6 +177,7 @@ class ThereminMode implements ModeController {
     if (this.voice) {
       this.voice.stop();
       this.voice = null;
+      this.voiceSynth = null;
     }
   }
 }
@@ -126,10 +192,11 @@ class GridMode implements ModeController {
   }
 
   frame(hands: Hand[], w: number, h: number): void {
+    const synth = modeSynth.grid;
+    const isDrums = synth === 'drums';
     const r = this.rect(w, h);
     const now = performance.now();
 
-    // draw cells
     for (let row = 0; row < 4; row++) {
       for (let col = 0; col < 4; col++) {
         const index = (3 - row) * 4 + col;
@@ -147,7 +214,8 @@ class GridMode implements ModeController {
         ctx.stroke();
         ctx.fillStyle = on ? '#eafff6' : 'rgba(233,230,244,0.45)';
         ctx.font = '11px "JetBrains Mono"';
-        ctx.fillText(noteName(GRID_NOTES[index]), cx + 12, cy + ch - 6);
+        const label = isDrums ? DRUM_LABELS[DRUM_PADS[index]] : noteName(GRID_NOTES[index]);
+        ctx.fillText(label, cx + 12, cy + ch - 6);
       }
     }
 
@@ -174,9 +242,15 @@ class GridMode implements ModeController {
       if (index !== this.lastCell[i]) {
         this.lastCell[i] = index;
         this.flashes.set(index, now + 180);
-        const freq = midiToFreq(GRID_NOTES[index]);
-        pluck(freq);
-        setReadout(`${noteName(GRID_NOTES[index])} <span class="hz">${freq.toFixed(1)} Hz</span>`);
+        if (isDrums) {
+          const drum = DRUM_PADS[index];
+          playDrum(drum);
+          setReadout(DRUM_LABELS[drum]);
+        } else {
+          const freq = midiToFreq(GRID_NOTES[index]);
+          pluck(freq, synth as MelodicSynth);
+          setReadout(`${noteName(GRID_NOTES[index])} <span class="hz">${freq.toFixed(1)} Hz</span>`);
+        }
         readoutSet = true;
       }
     }
@@ -218,6 +292,7 @@ class PianoMode implements ModeController {
   }
 
   frame(hands: Hand[], w: number, h: number): void {
+    const synth = modeSynth.piano as MelodicSynth;
     const r = this.rect(w, h);
     const keyW = r.w / PIANO_NOTES.length;
 
@@ -235,14 +310,14 @@ class PianoMode implements ModeController {
       if (pinchOn && !slot.pinched) {
         slot.pinched = true;
         slot.keyIndex = keyIndex;
-        slot.voice = startPianoVoice(midiToFreq(PIANO_NOTES[keyIndex]));
+        slot.voice = startSustainVoice(midiToFreq(PIANO_NOTES[keyIndex]), synth);
         setReadout(
           `${noteName(PIANO_NOTES[keyIndex])} <span class="hz">${midiToFreq(PIANO_NOTES[keyIndex]).toFixed(1)} Hz</span>`
         );
       } else if (pinchOn && slot.pinched && keyIndex !== slot.keyIndex) {
         if (slot.voice) slot.voice.stop(0.06);
         slot.keyIndex = keyIndex;
-        slot.voice = startPianoVoice(midiToFreq(PIANO_NOTES[keyIndex]));
+        slot.voice = startSustainVoice(midiToFreq(PIANO_NOTES[keyIndex]), synth);
         setReadout(
           `${noteName(PIANO_NOTES[keyIndex])} <span class="hz">${midiToFreq(PIANO_NOTES[keyIndex]).toFixed(1)} Hz</span>`
         );
@@ -251,7 +326,6 @@ class PianoMode implements ModeController {
       }
     }
 
-    // draw keys
     PIANO_NOTES.forEach((midi, idx) => {
       const active = this.slots.some((s) => s.pinched && s.keyIndex === idx);
       const kx = r.x + idx * keyW;
@@ -283,16 +357,6 @@ class PianoMode implements ModeController {
   }
 }
 
-function roundRect(c: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
-  c.beginPath();
-  c.moveTo(x + r, y);
-  c.arcTo(x + w, y, x + w, y + h, r);
-  c.arcTo(x + w, y + h, x, y + h, r);
-  c.arcTo(x, y + h, x, y, r);
-  c.arcTo(x, y, x + w, y, r);
-  c.closePath();
-}
-
 const controllers: Record<ModeId, ModeController> = {
   theremin: new ThereminMode(),
   grid: new GridMode(),
@@ -307,9 +371,89 @@ function setMode(next: ModeId) {
   app.dataset.mode = mode;
   tabs.forEach((t) => t.setAttribute('aria-selected', String((t.dataset.mode as ModeId) === mode)));
   setReadout('&mdash;', HINTS[mode]);
+  populateSynthSelect();
 }
 tabs.forEach((t) => t.addEventListener('click', () => setMode(t.dataset.mode as ModeId)));
 setReadout('&mdash;', HINTS[mode]);
+populateSynthSelect();
+
+// ---------------- recording ----------------
+
+const recorder = createRecorder();
+let takeBlob: Blob | null = null;
+let takeUrl: string | null = null;
+const playbackAudio = new Audio();
+let recordingStartedAt = 0;
+let recordTimer: number | null = null;
+
+function formatTime(ms: number): string {
+  const totalSec = Math.floor(ms / 1000);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+recordBtn.addEventListener('click', () => {
+  ensureAudio();
+  if (!recorder.isRecording()) {
+    recorder.start();
+    recordBtn.setAttribute('aria-pressed', 'true');
+    recordBtn.lastChild!.textContent = ' Stop';
+    playBtn.disabled = true;
+    loopBtn.disabled = true;
+    downloadBtn.disabled = true;
+    recordingStartedAt = performance.now();
+    recordTimer = window.setInterval(() => {
+      transportStatus.textContent = formatTime(performance.now() - recordingStartedAt);
+    }, 200);
+  } else {
+    recorder.stop().then((blob) => {
+      takeBlob = blob;
+      if (takeUrl) URL.revokeObjectURL(takeUrl);
+      takeUrl = URL.createObjectURL(blob);
+      playbackAudio.src = takeUrl;
+      playBtn.disabled = false;
+      loopBtn.disabled = false;
+      downloadBtn.disabled = false;
+      transportStatus.textContent = `take ready · ${formatTime(performance.now() - recordingStartedAt)}`;
+    });
+    recordBtn.setAttribute('aria-pressed', 'false');
+    recordBtn.lastChild!.textContent = ' Record';
+    if (recordTimer) {
+      window.clearInterval(recordTimer);
+      recordTimer = null;
+    }
+  }
+});
+
+playBtn.addEventListener('click', () => {
+  if (playbackAudio.paused) {
+    playbackAudio.play();
+    playBtn.textContent = 'Pause';
+  } else {
+    playbackAudio.pause();
+    playBtn.textContent = 'Play';
+  }
+});
+playbackAudio.addEventListener('ended', () => {
+  if (!playbackAudio.loop) playBtn.textContent = 'Play';
+});
+
+loopBtn.addEventListener('click', () => {
+  const next = loopBtn.getAttribute('aria-pressed') !== 'true';
+  loopBtn.setAttribute('aria-pressed', String(next));
+  playbackAudio.loop = next;
+});
+
+downloadBtn.addEventListener('click', () => {
+  if (!takeBlob) return;
+  const a = document.createElement('a');
+  a.href = takeUrl!;
+  a.download = `gestair-take-${Date.now()}.webm`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+});
 
 // ---------------- camera + render loop ----------------
 

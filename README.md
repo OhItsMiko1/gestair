@@ -8,11 +8,18 @@ Three modes, switchable at the top of the page:
 - **Theremin** — hold up a hand; its height bends pitch and its
   side-to-side position shapes the tone's brightness. Lower your hand
   and it goes quiet, like stepping back from a real theremin's antenna.
-- **Grid** — a 4×4 pentatonic pad grid. Cross a fingertip into a new
-  pad to play it, like tapping an air drum pad.
+- **Grid** — a 4×4 pad grid. Cross a fingertip into a new pad to play
+  it, like tapping an air drum pad. Set it to a melodic patch for a
+  pentatonic mallet grid, or to **Drum Kit** for a synthesized 16-pad
+  kit (kick, snare, hats, toms, cymbals, percussion).
 - **Air Piano** — 12 diatonic keys laid out left to right. Pinch thumb
   and index finger together to press a key, and slide while pinched to
   glide between notes.
+
+Each mode has its own **Sound** picker (Saw Lead, Warm Pad, Sine,
+Square Bass, Organ — plus Drum Kit on Grid), all synthesized live with
+the Web Audio API, no samples. A **transport bar** lets you record a
+take, loop it back in the browser, or download it as an audio file.
 
 All hand tracking runs on-device via [MediaPipe
 Tasks](https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker) —
