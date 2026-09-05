@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gestair — gesture instruments</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700;900&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    rel="stylesheet"
+  />
+</head>
+<body>
+  <div class="wrap" id="app" data-mode="theremin">
+    <header>
+      <div class="brand">
+        <div class="mark">GESTAIR</div>
+        <div class="tag">Play music by moving your hand in front of the camera. Nothing to touch.</div>
+      </div>
+      <div class="tabs" role="tablist" aria-label="Instrument mode">
+        <button class="tab" data-mode="theremin" role="tab" aria-selected="true">Theremin</button>
+        <button class="tab" data-mode="grid" role="tab" aria-selected="false">Grid</button>
+        <button class="tab" data-mode="piano" role="tab" aria-selected="false">Air Piano</button>
+      </div>
+    </header>
+
+    <div class="stage-shell">
+      <div class="stage" id="stage">
+        <video id="video" playsinline muted></video>
+        <canvas id="overlay"></canvas>
+
+        <div class="gate" id="gate">
+          <div class="gate-card">
+            <div class="gate-title">Enable your camera</div>
+            <p class="gate-body">
+              Gestair tracks your hand locally in the browser to play sound — your camera feed
+              never leaves this tab.
+            </p>
+            <button class="gate-btn" id="start-btn">Start playing</button>
+            <p class="gate-status" id="gate-status"></p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="readout">
+      <div class="note" id="readout-note">&mdash;</div>
+      <div class="hint" id="readout-hint">Tap “Start playing” to begin.</div>
+    </div>
+
+    <footer>
+      Gestair · a webcam hand-tracking instrument. All tracking runs on-device via MediaPipe —
+      no video is uploaded anywhere.
+    </footer>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
