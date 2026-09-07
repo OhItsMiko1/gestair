@@ -18,15 +18,15 @@ import {
   type SustainVoice,
   type ThereminVoice,
 } from './audio';
-import { loadHandLandmarker, startCamera, detectHands, type Hand } from './handTracking';
+import { loadHandLandmarker, startCamera, detectHands, FINGER_TIPS, HAND_CONNECTIONS, type Hand } from './handTracking';
 
 type ModeId = 'theremin' | 'grid' | 'piano';
 type GridSynth = MelodicSynth | 'drums';
 
 const HINTS: Record<ModeId, string> = {
   theremin: 'Hold up one hand — height bends pitch, side-to-side shapes the tone. Lower your hand to go silent.',
-  grid: 'Point with one or two hands and cross into a pad to play it, like tapping a drum pad in the air.',
-  piano: 'Pinch thumb and index finger to press a key, slide while pinched to glide between notes.',
+  grid: 'Spread your fingers and cross any fingertip into a pad to play it — multiple fingers hit multiple pads at once.',
+  piano: 'Pinch thumb and index to play a chord from every extended finger, slide while pinched to glide it. Make a fist to mute.',
 };
 
 const app = document.getElementById('app')!;
@@ -70,6 +70,40 @@ function roundRect(c: CanvasRenderingContext2D, x: number, y: number, w: number,
   c.arcTo(x, y + h, x, y, r);
   c.arcTo(x, y, x + w, y, r);
   c.closePath();
+}
+
+// Full 21-point hand skeleton so you can see exactly what the camera is
+// catching — bones in a dim neutral tone, joints brighter, fingertips
+// lit in the mode's accent color and enlarged when that finger is
+// extended (the ones actually available to play with right now).
+function drawHandSkeleton(hand: Hand, w: number, h: number, accent: string) {
+  const pts = hand.landmarks.map((lm) => mirroredPoint(lm, w, h));
+
+  ctx.strokeStyle = 'rgba(233,230,244,0.35)';
+  ctx.lineWidth = 2;
+  HAND_CONNECTIONS.forEach(([a, b]) => {
+    ctx.beginPath();
+    ctx.moveTo(pts[a].x, pts[a].y);
+    ctx.lineTo(pts[b].x, pts[b].y);
+    ctx.stroke();
+  });
+
+  pts.forEach((p, i) => {
+    if (FINGER_TIPS.includes(i)) return; // drawn separately below
+    ctx.beginPath();
+    ctx.fillStyle = 'rgba(233,230,244,0.55)';
+    ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  FINGER_TIPS.forEach((tipIdx, f) => {
+    const p = pts[tipIdx];
+    const extended = hand.fingers[f];
+    ctx.beginPath();
+    ctx.fillStyle = extended ? accent : 'rgba(233,230,244,0.4)';
+    ctx.arc(p.x, p.y, extended ? 7 : 4, 0, Math.PI * 2);
+    ctx.fill();
+  });
 }
 
 // ---------------- per-mode sound selection ----------------
@@ -184,7 +218,10 @@ class ThereminMode implements ModeController {
 
 const GRID_PAD = 14;
 class GridMode implements ModeController {
-  private lastCell: (number | null)[] = [null, null];
+  // keyed by "handIndex-fingerIndex" so every extended finger on either
+  // hand is its own independent cursor — spread your fingers over the
+  // pads and sweep to play chords / drum rolls, not just one note at a time.
+  private lastCell = new Map<string, number>();
   private flashes = new Map<number, number>();
 
   private rect(w: number, h: number) {
@@ -220,45 +257,48 @@ class GridMode implements ModeController {
     }
 
     let readoutSet = false;
-    for (let i = 0; i < 2; i++) {
+    const seenKeys = new Set<string>();
+    for (let i = 0; i < Math.min(hands.length, 2); i++) {
       const hand = hands[i];
-      if (!hand) {
-        this.lastCell[i] = null;
-        continue;
-      }
-      const p = mirroredPoint(hand.landmarks[8], w, h);
-      ctx.beginPath();
-      ctx.fillStyle = PALETTE.grid;
-      ctx.arc(p.x, p.y, 9, 0, Math.PI * 2);
-      ctx.fill();
+      FINGER_TIPS.forEach((tipIdx, f) => {
+        if (!hand.fingers[f]) return; // only extended fingers act as cursors
+        const key = `${i}-${f}`;
+        seenKeys.add(key);
+        const p = mirroredPoint(hand.landmarks[tipIdx], w, h);
 
-      if (p.x < r.x || p.x > r.x + r.w || p.y < r.y || p.y > r.y + r.h) {
-        this.lastCell[i] = null;
-        continue;
-      }
-      const col = Math.min(3, Math.floor(((p.x - r.x) / r.w) * 4));
-      const row = Math.min(3, Math.floor(((p.y - r.y) / r.h) * 4));
-      const index = (3 - row) * 4 + col;
-      if (index !== this.lastCell[i]) {
-        this.lastCell[i] = index;
-        this.flashes.set(index, now + 180);
-        if (isDrums) {
-          const drum = DRUM_PADS[index];
-          playDrum(drum);
-          setReadout(DRUM_LABELS[drum]);
-        } else {
-          const freq = midiToFreq(GRID_NOTES[index]);
-          pluck(freq, synth as MelodicSynth);
-          setReadout(`${noteName(GRID_NOTES[index])} <span class="hz">${freq.toFixed(1)} Hz</span>`);
+        if (p.x < r.x || p.x > r.x + r.w || p.y < r.y || p.y > r.y + r.h) {
+          this.lastCell.delete(key);
+          return;
         }
-        readoutSet = true;
-      }
+        const col = Math.min(3, Math.floor(((p.x - r.x) / r.w) * 4));
+        const row = Math.min(3, Math.floor(((p.y - r.y) / r.h) * 4));
+        const index = (3 - row) * 4 + col;
+        if (this.lastCell.get(key) !== index) {
+          this.lastCell.set(key, index);
+          this.flashes.set(index, now + 180);
+          if (isDrums) {
+            const drum = DRUM_PADS[index];
+            playDrum(drum);
+            setReadout(DRUM_LABELS[drum]);
+          } else {
+            const freq = midiToFreq(GRID_NOTES[index]);
+            pluck(freq, synth as MelodicSynth);
+            setReadout(`${noteName(GRID_NOTES[index])} <span class="hz">${freq.toFixed(1)} Hz</span>`);
+          }
+          readoutSet = true;
+        }
+      });
+    }
+    // fingers that curled or left the frame stop acting as cursors, so
+    // re-entering the same pad later retriggers it
+    for (const key of Array.from(this.lastCell.keys())) {
+      if (!seenKeys.has(key)) this.lastCell.delete(key);
     }
     if (!readoutSet && hands.length === 0) setReadout('&mdash;', HINTS.grid);
   }
 
   reset(): void {
-    this.lastCell = [null, null];
+    this.lastCell.clear();
     this.flashes.clear();
   }
 }
@@ -266,13 +306,13 @@ class GridMode implements ModeController {
 const PIANO_PAD = 14;
 interface PianoSlot {
   pinched: boolean;
-  keyIndex: number | null;
-  voice: SustainVoice | null;
+  keyIndices: number[]; // one per extended finger, captured as a chord at pinch-on
+  voices: SustainVoice[];
 }
 class PianoMode implements ModeController {
   private slots: PianoSlot[] = [
-    { pinched: false, keyIndex: null, voice: null },
-    { pinched: false, keyIndex: null, voice: null },
+    { pinched: false, keyIndices: [], voices: [] },
+    { pinched: false, keyIndices: [], voices: [] },
   ];
 
   private rect(w: number, h: number) {
@@ -285,10 +325,30 @@ class PianoMode implements ModeController {
   }
 
   private release(slot: PianoSlot) {
-    if (slot.voice) slot.voice.stop(0.18);
+    slot.voices.forEach((v) => v.stop(0.18));
     slot.pinched = false;
-    slot.keyIndex = null;
-    slot.voice = null;
+    slot.keyIndices = [];
+    slot.voices = [];
+  }
+
+  // The chord under a pinch: every currently-extended fingertip's x
+  // position, each mapped to its own key — pinch with three fingers
+  // spread out and you get a three-note chord.
+  private chordAt(hand: Hand, w: number, h: number, r: { x: number; w: number }): number[] {
+    const indices = new Set<number>();
+    FINGER_TIPS.forEach((tipIdx, f) => {
+      if (!hand.fingers[f]) return;
+      const p = mirroredPoint(hand.landmarks[tipIdx], w, h);
+      indices.add(this.keyIndexAt(p.x, r));
+    });
+    if (indices.size === 0) indices.add(this.keyIndexAt(mirroredPoint(hand.landmarks[8], w, h).x, r));
+    return Array.from(indices);
+  }
+
+  private playChord(slot: PianoSlot, indices: number[], synth: MelodicSynth) {
+    slot.keyIndices = indices;
+    slot.voices = indices.map((idx) => startSustainVoice(midiToFreq(PIANO_NOTES[idx]), synth));
+    setReadout(indices.map((idx) => noteName(PIANO_NOTES[idx])).join(' · '));
   }
 
   frame(hands: Hand[], w: number, h: number): void {
@@ -303,31 +363,22 @@ class PianoMode implements ModeController {
         if (slot.pinched) this.release(slot);
         continue;
       }
-      const p = mirroredPoint(hand.landmarks[8], w, h);
-      const keyIndex = this.keyIndexAt(p.x, r);
       const pinchOn = hand.pinch > (slot.pinched ? 0.4 : 0.6);
+      const chord = this.chordAt(hand, w, h, r);
 
       if (pinchOn && !slot.pinched) {
         slot.pinched = true;
-        slot.keyIndex = keyIndex;
-        slot.voice = startSustainVoice(midiToFreq(PIANO_NOTES[keyIndex]), synth);
-        setReadout(
-          `${noteName(PIANO_NOTES[keyIndex])} <span class="hz">${midiToFreq(PIANO_NOTES[keyIndex]).toFixed(1)} Hz</span>`
-        );
-      } else if (pinchOn && slot.pinched && keyIndex !== slot.keyIndex) {
-        if (slot.voice) slot.voice.stop(0.06);
-        slot.keyIndex = keyIndex;
-        slot.voice = startSustainVoice(midiToFreq(PIANO_NOTES[keyIndex]), synth);
-        setReadout(
-          `${noteName(PIANO_NOTES[keyIndex])} <span class="hz">${midiToFreq(PIANO_NOTES[keyIndex]).toFixed(1)} Hz</span>`
-        );
+        this.playChord(slot, chord, synth);
+      } else if (pinchOn && slot.pinched && (chord.length !== slot.keyIndices.length || chord.some((k, idx) => k !== slot.keyIndices[idx]))) {
+        slot.voices.forEach((v) => v.stop(0.06));
+        this.playChord(slot, chord, synth);
       } else if (!pinchOn && slot.pinched) {
         this.release(slot);
       }
     }
 
     PIANO_NOTES.forEach((midi, idx) => {
-      const active = this.slots.some((s) => s.pinched && s.keyIndex === idx);
+      const active = this.slots.some((s) => s.pinched && s.keyIndices.includes(idx));
       const kx = r.x + idx * keyW;
       ctx.fillStyle = active ? 'rgba(127,178,255,0.32)' : 'rgba(255,255,255,0.05)';
       ctx.strokeStyle = active ? PALETTE.piano : 'rgba(255,255,255,0.14)';
@@ -338,15 +389,6 @@ class PianoMode implements ModeController {
       ctx.fillStyle = active ? '#eaf3ff' : 'rgba(233,230,244,0.45)';
       ctx.font = '10px "JetBrains Mono"';
       ctx.fillText(noteName(midi), kx + 8, r.y + r.h - 10);
-    });
-
-    hands.slice(0, 2).forEach((hand) => {
-      const p = mirroredPoint(hand.landmarks[8], w, h);
-      const size = 7 + hand.pinch * 8;
-      ctx.beginPath();
-      ctx.fillStyle = hand.pinch > 0.5 ? PALETTE.piano : 'rgba(255,255,255,0.6)';
-      ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
-      ctx.fill();
     });
 
     if (hands.length === 0 && !this.slots.some((s) => s.pinched)) setReadout('&mdash;', HINTS.piano);
@@ -468,14 +510,39 @@ function resizeCanvas() {
 }
 window.addEventListener('resize', resizeCanvas);
 
+// A closed fist on either hand is a global "panic" gesture: it silences
+// whatever the current mode is holding, regardless of pinch state or
+// hand position — a safety valve when a chord or drone gets away from you.
+const wasFist: boolean[] = [false, false];
+let muteFlashUntil = 0;
+function checkPanicGesture(hands: Hand[]) {
+  for (let i = 0; i < 2; i++) {
+    const hand = hands[i];
+    const isFist = !!hand && hand.fingerCount === 0 && hand.pinch < 0.5;
+    if (isFist && !wasFist[i]) {
+      controllers[mode].reset();
+      muteFlashUntil = performance.now() + 500;
+      setReadout('&mdash;', 'Muted.');
+    }
+    wasFist[i] = isFist;
+  }
+}
+
 let running = false;
 function loop() {
   if (!running) return;
   const rect = stage.getBoundingClientRect();
-  ctx.clearRect(0, 0, rect.width, rect.height);
+  const { width: w, height: h } = rect;
+  ctx.clearRect(0, 0, w, h);
   if (video.readyState >= 2) {
     const hands = detectHands(video, performance.now());
-    controllers[mode].frame(hands, rect.width, rect.height);
+    checkPanicGesture(hands);
+    controllers[mode].frame(hands, w, h);
+    hands.forEach((hand) => drawHandSkeleton(hand, w, h, PALETTE[mode]));
+    if (performance.now() < muteFlashUntil) {
+      ctx.fillStyle = 'rgba(255,93,93,0.14)';
+      ctx.fillRect(0, 0, w, h);
+    }
   }
   requestAnimationFrame(loop);
 }
