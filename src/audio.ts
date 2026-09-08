@@ -36,16 +36,62 @@ export const PIANO_NOTES: number[] = Array.from({ length: 12 }, (_, i) => {
 
 let audioCtx: AudioContext | null = null;
 let masterGain: GainNode | null = null;
+let busOut: DynamicsCompressorNode | null = null;
 let recordDest: MediaStreamAudioDestinationNode | null = null;
+
+// A short synthetic room impulse (exponentially decaying noise) — no
+// sample file needed, just enough tail to keep every patch from sounding
+// like it's playing in a vacuum.
+function buildImpulseResponse(ctx: AudioContext, seconds = 2.0, decay = 3.4): AudioBuffer {
+  const rate = ctx.sampleRate;
+  const length = Math.floor(rate * seconds);
+  const impulse = ctx.createBuffer(2, length, rate);
+  for (let ch = 0; ch < 2; ch++) {
+    const data = impulse.getChannelData(ch);
+    for (let i = 0; i < length; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, decay);
+    }
+  }
+  return impulse;
+}
 
 export function ensureAudio(): AudioContext {
   if (!audioCtx) {
     audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
     const compressor = audioCtx.createDynamicsCompressor();
-    masterGain = audioCtx.createGain();
-    masterGain.gain.value = 0.9;
-    masterGain.connect(compressor);
     compressor.connect(audioCtx.destination);
+    busOut = compressor;
+
+    masterGain = audioCtx.createGain();
+    masterGain.gain.value = 0.85;
+    masterGain.connect(compressor);
+
+    // Master reverb send — a bit of room on everything is most of what
+    // separates a "produced" sound from a bare oscillator.
+    const reverb = audioCtx.createConvolver();
+    reverb.buffer = buildImpulseResponse(audioCtx);
+    const reverbSend = audioCtx.createGain();
+    reverbSend.gain.value = 0.15;
+    masterGain.connect(reverbSend);
+    reverbSend.connect(reverb);
+    reverb.connect(compressor);
+
+    // A subtle slap-delay send adds rhythmic depth without muddying pads.
+    const delay = audioCtx.createDelay(1.0);
+    delay.delayTime.value = 0.17;
+    const delayFeedback = audioCtx.createGain();
+    delayFeedback.gain.value = 0.22;
+    const delayFilter = audioCtx.createBiquadFilter();
+    delayFilter.type = 'lowpass';
+    delayFilter.frequency.value = 3200;
+    const delaySend = audioCtx.createGain();
+    delaySend.gain.value = 0.1;
+    masterGain.connect(delaySend);
+    delaySend.connect(delay);
+    delay.connect(delayFilter);
+    delayFilter.connect(delayFeedback);
+    delayFeedback.connect(delay);
+    delayFilter.connect(compressor);
   }
   if (audioCtx.state === 'suspended') audioCtx.resume();
   return audioCtx;
@@ -411,7 +457,7 @@ export function createRecorder(): Recorder {
       const ctx = ensureAudio();
       if (!recordDest) {
         recordDest = ctx.createMediaStreamDestination();
-        masterGain!.connect(recordDest);
+        busOut!.connect(recordDest);
       }
       chunks = [];
       const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '';

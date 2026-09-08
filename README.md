@@ -24,8 +24,12 @@ runaway drone or chord.
 
 Each mode has its own **Sound** picker (Saw Lead, Warm Pad, Sine,
 Square Bass, Organ — plus Drum Kit on Grid), all synthesized live with
-the Web Audio API, no samples. A **transport bar** lets you record a
-take, loop it back in the browser, or download it as an audio file.
+the Web Audio API and routed through a shared reverb/delay send, no
+samples. A **transport bar** lets you record a take, loop it back in
+the browser, or download it as an audio file.
+
+Hand landmark positions are smoothed frame to frame to keep pads and
+chords from misfiring on tracking jitter.
 
 All hand tracking runs on-device via [MediaPipe
 Tasks](https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker) —

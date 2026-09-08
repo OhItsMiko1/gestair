@@ -47,11 +47,12 @@ const loopBtn = document.getElementById('loop-btn') as HTMLButtonElement;
 const downloadBtn = document.getElementById('download-btn') as HTMLButtonElement;
 const transportStatus = document.getElementById('transport-status')!;
 
-const PALETTE: Record<ModeId, string> = {
-  theremin: '#ff9b4d',
-  grid: '#4fe0b0',
-  piano: '#7fb2ff',
-};
+// One restrained accent used everywhere — modes are distinguished by
+// label and layout, not by a different candy color each.
+const ACCENT = '#4c8bff';
+const ACCENT_SOFT = 'rgba(76, 139, 255, 0.16)';
+const INK_SOFT = 'rgba(240, 240, 238, 0.5)';
+const INK_FAINT = 'rgba(240, 240, 238, 0.16)';
 
 function setReadout(text: string, hint?: string) {
   noteBox.innerHTML = text;
@@ -72,15 +73,15 @@ function roundRect(c: CanvasRenderingContext2D, x: number, y: number, w: number,
   c.closePath();
 }
 
-// Full 21-point hand skeleton so you can see exactly what the camera is
-// catching — bones in a dim neutral tone, joints brighter, fingertips
-// lit in the mode's accent color and enlarged when that finger is
-// extended (the ones actually available to play with right now).
-function drawHandSkeleton(hand: Hand, w: number, h: number, accent: string) {
+// A fine-lined 21-point hand skeleton, closer to a technical vision
+// overlay than a game HUD: thin bones, small joints, and an open ring
+// on each fingertip that fills solid only when that finger is extended
+// and available to play with.
+function drawHandSkeleton(hand: Hand, w: number, h: number) {
   const pts = hand.landmarks.map((lm) => mirroredPoint(lm, w, h));
 
-  ctx.strokeStyle = 'rgba(233,230,244,0.35)';
-  ctx.lineWidth = 2;
+  ctx.strokeStyle = 'rgba(240,240,238,0.22)';
+  ctx.lineWidth = 1;
   HAND_CONNECTIONS.forEach(([a, b]) => {
     ctx.beginPath();
     ctx.moveTo(pts[a].x, pts[a].y);
@@ -91,8 +92,8 @@ function drawHandSkeleton(hand: Hand, w: number, h: number, accent: string) {
   pts.forEach((p, i) => {
     if (FINGER_TIPS.includes(i)) return; // drawn separately below
     ctx.beginPath();
-    ctx.fillStyle = 'rgba(233,230,244,0.55)';
-    ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(240,240,238,0.4)';
+    ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
     ctx.fill();
   });
 
@@ -100,9 +101,12 @@ function drawHandSkeleton(hand: Hand, w: number, h: number, accent: string) {
     const p = pts[tipIdx];
     const extended = hand.fingers[f];
     ctx.beginPath();
-    ctx.fillStyle = extended ? accent : 'rgba(233,230,244,0.4)';
-    ctx.arc(p.x, p.y, extended ? 7 : 4, 0, Math.PI * 2);
+    ctx.arc(p.x, p.y, 5.5, 0, Math.PI * 2);
+    ctx.fillStyle = extended ? ACCENT : 'rgba(240,240,238,0.08)';
     ctx.fill();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = extended ? ACCENT : 'rgba(240,240,238,0.3)';
+    ctx.stroke();
   });
 }
 
@@ -158,8 +162,8 @@ class ThereminMode implements ModeController {
     const hand = hands[0];
     const palm = mirroredPoint(hand.landmarks[9], w, h);
 
-    ctx.strokeStyle = 'rgba(255,155,77,0.35)';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = INK_FAINT;
+    ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(24, 20);
     ctx.lineTo(24, h - 44);
@@ -168,8 +172,8 @@ class ThereminMode implements ModeController {
     ctx.moveTo(60, h - 18);
     ctx.lineTo(w - 24, h - 18);
     ctx.stroke();
-    ctx.fillStyle = 'rgba(233,230,244,0.5)';
-    ctx.font = '11px "JetBrains Mono"';
+    ctx.fillStyle = INK_SOFT;
+    ctx.font = '10.5px "IBM Plex Mono"';
     ctx.fillText('dark', 60, h - 26);
     ctx.fillText('bright', w - 60, h - 26);
     [48, 60, 72].forEach((midi) => {
@@ -195,14 +199,28 @@ class ThereminMode implements ModeController {
       this.voice.update(freq, cutoff);
     }
 
+    // A precise reticle at the control point rather than a glow blob —
+    // reads as an instrument's pickup point, not a cursor effect.
     ctx.beginPath();
-    const grad = ctx.createRadialGradient(palm.x, palm.y, 2, palm.x, palm.y, 22);
-    grad.addColorStop(0, '#fff');
-    grad.addColorStop(0.5, PALETTE.theremin);
-    grad.addColorStop(1, 'rgba(255,155,77,0)');
-    ctx.fillStyle = grad;
-    ctx.arc(palm.x, palm.y, 22, 0, Math.PI * 2);
+    ctx.strokeStyle = ACCENT;
+    ctx.lineWidth = 1.5;
+    ctx.arc(palm.x, palm.y, 14, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.fillStyle = ACCENT;
+    ctx.arc(palm.x, palm.y, 2.5, 0, Math.PI * 2);
     ctx.fill();
+    [0, 90, 180, 270].forEach((deg) => {
+      const rad = (deg * Math.PI) / 180;
+      const x1 = palm.x + Math.cos(rad) * 18;
+      const y1 = palm.y + Math.sin(rad) * 18;
+      const x2 = palm.x + Math.cos(rad) * 22;
+      const y2 = palm.y + Math.sin(rad) * 22;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+    });
 
     setReadout(`${noteName(Math.round(midi))} <span class="hz">${freq.toFixed(1)} Hz</span>`);
   }
@@ -243,14 +261,14 @@ class GridMode implements ModeController {
         const ch = r.h / 4 - 8;
         const flashUntil = this.flashes.get(index) ?? 0;
         const on = now < flashUntil;
-        ctx.fillStyle = on ? 'rgba(79,224,176,0.28)' : 'rgba(255,255,255,0.04)';
-        ctx.strokeStyle = on ? PALETTE.grid : 'rgba(255,255,255,0.12)';
-        ctx.lineWidth = on ? 2 : 1;
-        roundRect(ctx, cx + 4, cy + 4, cw, ch, 10);
+        ctx.fillStyle = on ? ACCENT_SOFT : 'rgba(255,255,255,0.03)';
+        ctx.strokeStyle = on ? ACCENT : 'rgba(255,255,255,0.1)';
+        ctx.lineWidth = on ? 1.5 : 1;
+        roundRect(ctx, cx + 4, cy + 4, cw, ch, 6);
         ctx.fill();
         ctx.stroke();
-        ctx.fillStyle = on ? '#eafff6' : 'rgba(233,230,244,0.45)';
-        ctx.font = '11px "JetBrains Mono"';
+        ctx.fillStyle = on ? '#eaf1ff' : INK_SOFT;
+        ctx.font = '10.5px "IBM Plex Mono"';
         const label = isDrums ? DRUM_LABELS[DRUM_PADS[index]] : noteName(GRID_NOTES[index]);
         ctx.fillText(label, cx + 12, cy + ch - 6);
       }
@@ -380,14 +398,14 @@ class PianoMode implements ModeController {
     PIANO_NOTES.forEach((midi, idx) => {
       const active = this.slots.some((s) => s.pinched && s.keyIndices.includes(idx));
       const kx = r.x + idx * keyW;
-      ctx.fillStyle = active ? 'rgba(127,178,255,0.32)' : 'rgba(255,255,255,0.05)';
-      ctx.strokeStyle = active ? PALETTE.piano : 'rgba(255,255,255,0.14)';
-      ctx.lineWidth = active ? 2 : 1;
-      roundRect(ctx, kx + 3, r.y, keyW - 6, r.h, 8);
+      ctx.fillStyle = active ? ACCENT_SOFT : 'rgba(255,255,255,0.03)';
+      ctx.strokeStyle = active ? ACCENT : 'rgba(255,255,255,0.1)';
+      ctx.lineWidth = active ? 1.5 : 1;
+      roundRect(ctx, kx + 3, r.y, keyW - 6, r.h, 5);
       ctx.fill();
       ctx.stroke();
-      ctx.fillStyle = active ? '#eaf3ff' : 'rgba(233,230,244,0.45)';
-      ctx.font = '10px "JetBrains Mono"';
+      ctx.fillStyle = active ? '#eaf1ff' : INK_SOFT;
+      ctx.font = '9.5px "IBM Plex Mono"';
       ctx.fillText(noteName(midi), kx + 8, r.y + r.h - 10);
     });
 
@@ -538,7 +556,7 @@ function loop() {
     const hands = detectHands(video, performance.now());
     checkPanicGesture(hands);
     controllers[mode].frame(hands, w, h);
-    hands.forEach((hand) => drawHandSkeleton(hand, w, h, PALETTE[mode]));
+    hands.forEach((hand) => drawHandSkeleton(hand, w, h));
     if (performance.now() < muteFlashUntil) {
       ctx.fillStyle = 'rgba(255,93,93,0.14)';
       ctx.fillRect(0, 0, w, h);

@@ -42,6 +42,9 @@ export async function loadHandLandmarker(): Promise<void> {
     },
     runningMode: 'VIDEO',
     numHands: 2,
+    minHandDetectionConfidence: 0.65,
+    minHandPresenceConfidence: 0.65,
+    minTrackingConfidence: 0.65,
   });
 }
 
@@ -83,10 +86,31 @@ function fingerExtension(lm: Landmark[]): boolean[] {
   return [thumb, ...rest];
 }
 
+// Raw landmark positions jitter frame to frame — enough to make cursors
+// shake and drum pads misfire. Each hand slot (by detection order) gets
+// its own exponential moving average, low enough to settle the shake
+// without adding noticeable input lag for a musical gesture.
+const SMOOTH_ALPHA = 0.5;
+const smoothed: (Landmark[] | null)[] = [null, null];
+
+function smooth(slot: number, raw: Landmark[]): Landmark[] {
+  const prev = smoothed[slot];
+  const next = !prev
+    ? raw.map((p) => ({ ...p }))
+    : raw.map((p, i) => ({
+        x: prev[i].x + (p.x - prev[i].x) * SMOOTH_ALPHA,
+        y: prev[i].y + (p.y - prev[i].y) * SMOOTH_ALPHA,
+        z: prev[i].z + (p.z - prev[i].z) * SMOOTH_ALPHA,
+      }));
+  smoothed[slot] = next;
+  return next;
+}
+
 export function detectHands(video: HTMLVideoElement, timestampMs: number): Hand[] {
   if (!landmarker) return [];
   const result: HandLandmarkerResult = landmarker.detectForVideo(video, timestampMs);
-  return result.landmarks.map((lm) => {
+  const hands = result.landmarks.map((raw, slot) => {
+    const lm = smooth(slot, raw);
     const fingers = fingerExtension(lm);
     return {
       landmarks: lm,
@@ -95,4 +119,6 @@ export function detectHands(video: HTMLVideoElement, timestampMs: number): Hand[
       fingerCount: fingers.filter(Boolean).length,
     };
   });
+  for (let i = hands.length; i < smoothed.length; i++) smoothed[i] = null;
+  return hands;
 }

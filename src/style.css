@@ -1,18 +1,20 @@
-/* Gestair commits to one panel: a dark synth-console world, lit by three
-   instrument accents — same visual language across every mode. */
+/* A single instrument-panel world: near-black graphite, one restrained
+   accent, and Inter/IBM Plex Mono doing all the typographic work — the
+   register of professional audio software, not a demo toy. */
 :root {
-  --bg: #171522;
-  --panel: #221f33;
-  --panel-2: #2a273e;
-  --line: #3a3652;
-  --ink: #f1eef8;
-  --ink-dim: #a9a3c4;
-  --ink-faint: #726c92;
+  --bg: #0b0c0f;
+  --panel: #141519;
+  --panel-2: #191b20;
+  --line: #26282e;
+  --line-soft: #1d1f24;
+  --ink: #f0f0ee;
+  --ink-dim: #9799a3;
+  --ink-faint: #5a5c66;
 
-  --theremin: #ff9b4d;
-  --theremin-dim: #7a5230;
-  --grid: #4fe0b0;
-  --piano: #7fb2ff;
+  --accent: #4c8bff;
+  --accent-ink: #eaf1ff;
+  --accent-dim: rgba(76, 139, 255, 0.16);
+  --danger: #ff6459;
 }
 
 * {
@@ -24,12 +26,12 @@ body {
   height: 100%;
 }
 body {
-  background: radial-gradient(120% 140% at 20% -10%, #241f3a 0%, var(--bg) 55%, #110f1c 100%);
+  background: var(--bg);
   color: var(--ink);
-  font-family: 'Manrope', ui-sans-serif, system-ui, sans-serif;
+  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   min-height: 100vh;
-  padding: clamp(16px, 4vw, 40px);
+  padding: clamp(16px, 3.5vw, 36px);
 }
 
 .wrap {
@@ -37,14 +39,14 @@ body {
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: clamp(18px, 3vw, 28px);
+  gap: clamp(16px, 2.5vw, 22px);
 }
 
 header {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 16px;
+  gap: 20px;
   flex-wrap: wrap;
   border-bottom: 1px solid var(--line);
   padding-bottom: 16px;
@@ -52,80 +54,73 @@ header {
 .brand {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
 }
 .brand .mark {
-  font-family: 'Unbounded', ui-sans-serif, sans-serif;
-  font-weight: 900;
-  font-size: clamp(26px, 5vw, 38px);
-  letter-spacing: 0.01em;
-  line-height: 1;
-  background: linear-gradient(120deg, var(--theremin), var(--piano) 70%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  font-weight: 700;
+  font-size: 19px;
+  letter-spacing: -0.01em;
+  color: var(--ink);
 }
 .brand .tag {
-  font-size: 13px;
-  color: var(--ink-dim);
-  max-width: 48ch;
+  font-size: 12.5px;
+  color: var(--ink-faint);
+  max-width: 44ch;
 }
 
 .tabs {
   display: flex;
-  gap: 6px;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 5px;
+  gap: 2px;
 }
 .tab {
   appearance: none;
   border: 0;
+  border-bottom: 2px solid transparent;
   background: transparent;
-  color: var(--ink-dim);
-  font-family: 'Manrope';
-  font-weight: 700;
+  color: var(--ink-faint);
+  font-family: 'Inter';
+  font-weight: 600;
   font-size: 13px;
-  letter-spacing: 0.02em;
-  padding: 9px 16px;
-  border-radius: 999px;
+  letter-spacing: 0.01em;
+  padding: 9px 14px 11px;
   cursor: pointer;
-  transition: color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
-  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.tab:hover {
+  color: var(--ink-dim);
 }
 .tab:focus-visible {
-  outline: 2px solid var(--ink);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
-.tab[data-mode='theremin'][aria-selected='true'] {
-  background: var(--theremin);
-  color: #1a1206;
-  box-shadow: 0 0 22px -4px var(--theremin);
+.tab-index {
+  font-family: 'IBM Plex Mono';
+  font-size: 10.5px;
+  color: var(--ink-faint);
+  letter-spacing: 0.02em;
 }
-.tab[data-mode='grid'][aria-selected='true'] {
-  background: var(--grid);
-  color: #0a1f17;
-  box-shadow: 0 0 22px -4px var(--grid);
+.tab[aria-selected='true'] {
+  color: var(--ink);
+  border-bottom-color: var(--accent);
 }
-.tab[data-mode='piano'][aria-selected='true'] {
-  background: var(--piano);
-  color: #0b1a30;
-  box-shadow: 0 0 22px -4px var(--piano);
+.tab[aria-selected='true'] .tab-index {
+  color: var(--accent);
 }
 
 .stage-shell {
   position: relative;
-  border-radius: 22px;
-  padding: 3px;
-  background: linear-gradient(160deg, var(--line), transparent 40%);
+  border-radius: 12px;
+  padding: 1px;
+  background: var(--line);
 }
 .stage {
   position: relative;
-  height: clamp(360px, 60vh, 560px);
-  border-radius: 20px;
-  background: radial-gradient(120% 140% at 50% 0%, var(--panel-2) 0%, var(--panel) 60%);
-  border: 1px solid var(--line);
+  height: clamp(360px, 58vh, 540px);
+  border-radius: 11px;
+  background: var(--panel);
   overflow: hidden;
 }
 #video {
@@ -134,6 +129,7 @@ header {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  filter: saturate(0.82) brightness(0.92);
   transform: scaleX(-1); /* mirror, so moving your hand right moves the cursor right */
 }
 #overlay {
@@ -149,57 +145,62 @@ header {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(10, 9, 16, 0.72);
-  backdrop-filter: blur(6px);
+  background: rgba(8, 8, 10, 0.86);
+  backdrop-filter: blur(8px);
   transition: opacity 0.25s ease;
 }
 .gate[hidden] {
   display: none;
 }
 .gate-card {
-  max-width: 360px;
+  max-width: 340px;
   text-align: center;
-  padding: 28px 26px;
-  border-radius: 16px;
-  background: var(--panel);
+  padding: 30px 28px;
+  border-radius: 10px;
+  background: var(--panel-2);
   border: 1px solid var(--line);
 }
 .gate-title {
-  font-family: 'Unbounded';
   font-weight: 700;
-  font-size: 19px;
+  font-size: 17px;
+  letter-spacing: -0.01em;
   margin-bottom: 10px;
 }
 .gate-body {
-  font-size: 13.5px;
+  font-size: 13px;
   color: var(--ink-dim);
-  line-height: 1.5;
-  margin: 0 0 18px;
+  line-height: 1.55;
+  margin: 0 0 20px;
 }
 .gate-btn {
   appearance: none;
-  border: 0;
-  border-radius: 999px;
-  padding: 12px 26px;
-  font-family: 'Manrope';
-  font-weight: 700;
-  font-size: 14px;
+  border: 1px solid var(--accent);
+  border-radius: 7px;
+  padding: 11px 24px;
+  font-family: 'Inter';
+  font-weight: 600;
+  font-size: 13.5px;
   cursor: pointer;
-  background: linear-gradient(120deg, var(--theremin), var(--piano) 90%);
-  color: #14101f;
+  background: var(--accent);
+  color: #08111f;
+  transition: opacity 0.15s ease;
+}
+.gate-btn:hover {
+  opacity: 0.9;
 }
 .gate-btn:disabled {
-  opacity: 0.6;
+  opacity: 0.45;
   cursor: default;
 }
 .gate-status {
-  margin: 12px 0 0;
-  font-size: 12px;
+  margin: 13px 0 0;
+  font-family: 'IBM Plex Mono';
+  font-size: 11.5px;
   color: var(--ink-faint);
   min-height: 1.4em;
 }
 .gate-status.error {
-  color: #ff8a8a;
+  color: var(--danger);
 }
 
 .controls {
@@ -218,10 +219,11 @@ header {
   color: var(--ink-dim);
 }
 .sound-picker-label {
-  font-weight: 700;
-  letter-spacing: 0.03em;
+  font-family: 'IBM Plex Mono';
+  font-weight: 500;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  font-size: 11px;
+  font-size: 10px;
   color: var(--ink-faint);
 }
 .sound-picker select {
@@ -229,26 +231,30 @@ header {
   background: var(--panel);
   border: 1px solid var(--line);
   color: var(--ink);
-  font-family: 'Manrope';
-  font-weight: 600;
+  font-family: 'Inter';
+  font-weight: 500;
   font-size: 13px;
-  padding: 8px 34px 8px 14px;
-  border-radius: 999px;
+  padding: 7px 30px 7px 12px;
+  border-radius: 7px;
   cursor: pointer;
-  background-image: linear-gradient(45deg, transparent 50%, var(--ink-dim) 50%), linear-gradient(135deg, var(--ink-dim) 50%, transparent 50%);
-  background-position: calc(100% - 18px) center, calc(100% - 13px) center;
+  background-image: linear-gradient(45deg, transparent 50%, var(--ink-faint) 50%), linear-gradient(135deg, var(--ink-faint) 50%, transparent 50%);
+  background-position: calc(100% - 16px) center, calc(100% - 11px) center;
   background-size: 5px 5px, 5px 5px;
   background-repeat: no-repeat;
+  transition: border-color 0.15s ease;
+}
+.sound-picker select:hover {
+  border-color: var(--ink-faint);
 }
 .sound-picker select:focus-visible {
-  outline: 2px solid var(--ink);
-  outline-offset: 2px;
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 .transport {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
 }
 .transport-btn {
@@ -256,50 +262,51 @@ header {
   border: 1px solid var(--line);
   background: var(--panel);
   color: var(--ink-dim);
-  font-family: 'Manrope';
-  font-weight: 700;
-  font-size: 12.5px;
-  padding: 8px 14px;
-  border-radius: 999px;
+  font-family: 'Inter';
+  font-weight: 600;
+  font-size: 12px;
+  padding: 7px 13px;
+  border-radius: 7px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 .transport-btn:disabled {
-  opacity: 0.4;
+  opacity: 0.35;
   cursor: default;
 }
 .transport-btn:not(:disabled):hover {
-  border-color: var(--ink-dim);
+  border-color: var(--ink-faint);
   color: var(--ink);
 }
 .transport-btn.record .rec-dot {
-  width: 9px;
-  height: 9px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  background: #ff5d5d;
+  background: var(--danger);
   display: inline-block;
 }
 .transport-btn.record[aria-pressed='true'] {
-  background: #3a1620;
-  border-color: #ff5d5d;
-  color: #ffd4d4;
+  background: rgba(255, 100, 89, 0.12);
+  border-color: var(--danger);
+  color: var(--ink);
 }
 .transport-btn.record[aria-pressed='true'] .rec-dot {
   animation: rec-pulse 1s ease-in-out infinite;
 }
 .transport-btn[aria-pressed='true']:not(.record) {
-  background: color-mix(in srgb, var(--piano) 28%, var(--panel));
-  border-color: var(--piano);
-  color: #eaf3ff;
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent-ink);
 }
 .transport-status {
-  font-family: 'JetBrains Mono';
-  font-size: 12px;
+  font-family: 'IBM Plex Mono';
+  font-size: 11.5px;
   color: var(--ink-faint);
   min-width: 8ch;
+  font-variant-numeric: tabular-nums;
 }
 
 @keyframes rec-pulse {
@@ -318,23 +325,24 @@ header {
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
-  padding: 14px 18px;
+  padding: 13px 16px;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: 9px;
 }
 .readout .note {
-  font-family: 'JetBrains Mono';
-  font-size: 15px;
+  font-family: 'IBM Plex Mono';
+  font-size: 14px;
   font-variant-numeric: tabular-nums;
   color: var(--ink);
   min-width: 14ch;
+  letter-spacing: 0.01em;
 }
 .readout .note .hz {
   color: var(--ink-faint);
 }
 .readout .hint {
-  font-size: 13px;
+  font-size: 12.5px;
   color: var(--ink-dim);
   text-align: right;
   flex: 1;
@@ -342,7 +350,7 @@ header {
 }
 
 footer {
-  font-size: 12px;
+  font-size: 11.5px;
   color: var(--ink-faint);
   line-height: 1.6;
   border-top: 1px solid var(--line);

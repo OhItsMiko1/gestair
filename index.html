@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
-    href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700;900&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
     rel="stylesheet"
   />
 </head>
@@ -15,13 +15,19 @@
   <div class="wrap" id="app" data-mode="theremin">
     <header>
       <div class="brand">
-        <div class="mark">GESTAIR</div>
-        <div class="tag">Play music by moving your hand in front of the camera. Nothing to touch.</div>
+        <div class="mark">Gestair</div>
+        <div class="tag">Gesture-controlled instruments, tracked in the browser.</div>
       </div>
-      <div class="tabs" role="tablist" aria-label="Instrument mode">
-        <button class="tab" data-mode="theremin" role="tab" aria-selected="true">Theremin</button>
-        <button class="tab" data-mode="grid" role="tab" aria-selected="false">Grid</button>
-        <button class="tab" data-mode="piano" role="tab" aria-selected="false">Air Piano</button>
+      <div class="tabs" role="tablist" aria-label="Instrument">
+        <button class="tab" data-mode="theremin" role="tab" aria-selected="true">
+          <span class="tab-index">01</span>Theremin
+        </button>
+        <button class="tab" data-mode="grid" role="tab" aria-selected="false">
+          <span class="tab-index">02</span>Grid
+        </button>
+        <button class="tab" data-mode="piano" role="tab" aria-selected="false">
+          <span class="tab-index">03</span>Air Piano
+        </button>
       </div>
     </header>
 
